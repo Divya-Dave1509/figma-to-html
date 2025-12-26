@@ -111,6 +111,11 @@ exports.convertImage = async (req, res) => {
         }
 
         const { mode } = req.body; // 'web' or 'email'
+
+        console.log(`Processing image upload: ${req.file.originalname}`);
+        console.log(`File size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
+        console.log(`Mime type: ${req.file.mimetype}`);
+
         const base64Image = req.file.buffer.toString('base64');
         const mediaType = req.file.mimetype;
 
@@ -141,7 +146,10 @@ exports.convertImage = async (req, res) => {
             headers: {
                 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
                 'Content-Type': 'application/json'
-            }
+            },
+            maxBodyLength: Infinity,
+            maxContentLength: Infinity,
+            timeout: 120000 // 2 minutes timeout
         });
 
         // Extract text content using Regex to ignore conversational text
