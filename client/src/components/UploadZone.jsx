@@ -38,8 +38,13 @@ const UploadZone = ({ onConversionStart, onConversionSuccess, onConversionError 
             onConversionSuccess(response.data);
         } catch (error) {
             console.error(error);
-            console.error(error);
-            const errorMsg = error.response?.data?.error || error.message || 'Conversion failed';
+            let errorMsg = error.response?.data?.error || error.message || 'Conversion failed';
+
+            // Helpful hint for deployment 404s (Backend not reached)
+            if (error.response?.status === 404) {
+                errorMsg = `Backend not found (404). Did you deploy the Server and set VITE_API_URL in Vercel?`;
+            }
+
             onConversionError(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg);
         } finally {
             setLoading(false);
