@@ -26,7 +26,9 @@ const generatePrompt = (mode) => {
     
     **CRITICAL: USE EXTRACTED DATA**
     If **DIRECT FIGMA DATA** is provided at the end of this prompt, you **MUST** use those exact values for:
-    - **Font Families:** Use the specific font family names listed (e.g. 'Inter', 'Roboto').
+    - **Font Families:** Use the specific font family names listed (e.g. 'Gilroy', 'Inter'). **DO NOT DEFAULT TO ARIAL OR SYSTEM FONTS** unless the design actually uses them.
+      - If a custom font is used (e.g. "Gilroy"), use it in the CSS variable: \`--font-family-heading: 'Gilroy', sans-serif;\`.
+      - **CRITICAL:** Add a Google Fonts import or @font-face placeholder for these fonts in the CSS so they usually work.
     - **Font Sizes/Weights:** Match the exact pixel values from the JSON data.
     - **Colors:** Use the exact hex codes provided in the JSON data.
     - **Line Heights:** Use the specific line-heights provided.
@@ -286,6 +288,7 @@ exports.convertFigma = async (req, res) => {
                 designContext = `
 **EXTRACTED DESIGN SYSTEM (FROM FIGMA API):**
 - **COLORS:** ${parsedDesign.colors.join(', ')}
+- **DETECTED FONT FAMILIES:** ${parsedDesign.fonts ? [...new Set(parsedDesign.fonts.map(f => f.match(/Family: ([^,]+)/)?.[1] || ''))].filter(Boolean).join(', ') : 'None'}
 - **GRADIENTS:** ${parsedDesign.gradients?.length > 0 ? parsedDesign.gradients.join(', ') : 'None'}
 - **TYPOGRAPHY:** 
   - Headings: ${parsedDesign.typography?.headings && parsedDesign.typography.headings.length > 0 ? parsedDesign.typography.headings.join(' | ') : 'None'}
@@ -342,9 +345,10 @@ ${JSON.stringify(nodeData, (key, value) => {
         const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         // Helper to fetch and check size with Retry Logic
-        const fetchAndCheckImage = async (scale, retries = 3) => {
+        // Helper to fetch and check size with Retry Logic
+        const fetchAndCheckImage = async (scale, retries = 10) => {
             try {
-                console.log(`Attempting to fetch Figma image with scale: ${scale}...`);
+                console.log(`Attempting to fetch Figma image with scale: ${scale}... (Retries left: ${retries})`);
                 const imgResp = await axios.get(`https://api.figma.com/v1/images/${fileKey}`, {
                     headers: { 'X-Figma-Token': figmaToken },
                     params: { ids: nodeId, format: 'png', scale: scale }
@@ -356,14 +360,15 @@ ${JSON.stringify(nodeData, (key, value) => {
                 return { buffer: download.data, size: download.data.length };
             } catch (error) {
                 // Handle Rate Limits (429)
-                // Handle Rate Limits (429)
                 if (error.response && error.response.status === 429 && retries > 0) {
-                    const waitTime = (4 - retries) * 10000; // 10s, 20s, 30s
-                    console.warn(`Rate limit exceeded (429). Retrying in ${waitTime / 1000} seconds... (${retries} retries left)`);
+                    // Backoff: 10s, 20s, 30s... up to 60s max/wait
+                    const attempt = 11 - retries; // 1, 2, 3...
+                    const waitTime = Math.min(attempt * 10000, 60000);
+
+                    console.warn(`Rate limit exceeded (429). Waiting ${waitTime / 1000}s... (${retries} retries left)`);
                     await delay(waitTime);
                     return fetchAndCheckImage(scale, retries - 1);
                 }
-                throw error;
                 throw error;
             }
         };
