@@ -6,6 +6,7 @@ const UploadZone = ({ onConversionStart, onConversionSuccess, onConversionError 
     const [inputType, setInputType] = useState('image'); // 'image' or 'figma'
     const [file, setFile] = useState(null);
     const [figmaUrl, setFigmaUrl] = useState('');
+    const [customCSS, setCustomCSS] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleFileChange = (e) => {
@@ -28,11 +29,12 @@ const UploadZone = ({ onConversionStart, onConversionSuccess, onConversionError 
                 const formData = new FormData();
                 formData.append('image', file);
                 formData.append('mode', mode);
+                formData.append('customCSS', customCSS); // Send Custom CSS
                 response = await axios.post(`${API_URL}/convert/image`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
             } else {
-                response = await axios.post(`${API_URL}/convert/figma`, { url: figmaUrl, mode });
+                response = await axios.post(`${API_URL}/convert/figma`, { url: figmaUrl, mode, customCSS }); // Send Custom CSS
             }
 
             onConversionSuccess(response.data);
@@ -111,7 +113,30 @@ const UploadZone = ({ onConversionStart, onConversionSuccess, onConversionError 
                     </div>
                 )}
 
-                <button type="submit" disabled={loading} className="generate-btn">
+                <div className="custom-css-input" style={{ marginTop: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8' }}>
+                        Custom CSS / Utilities (Optional)
+                    </label>
+                    <textarea
+                        placeholder="Paste your CSS classes, variables, or utility definitions here. The AI will prioritize these styles."
+                        value={customCSS}
+                        onChange={(e) => setCustomCSS(e.target.value)}
+                        style={{
+                            width: '100%',
+                            minHeight: '100px',
+                            background: '#1e293b',
+                            border: '1px solid #334155',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            color: '#f8fafc',
+                            fontFamily: 'monospace',
+                            fontSize: '0.9rem',
+                            resize: 'vertical'
+                        }}
+                    />
+                </div>
+
+                <button type="submit" disabled={loading} className="generate-btn" style={{ marginTop: '20px' }}>
                     {loading ? 'Generating...' : 'Generate HTML'}
                 </button>
             </form>

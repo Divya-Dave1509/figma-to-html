@@ -3,7 +3,7 @@ const fs = require('fs');
 const { parseFigmaNode } = require('../utils/figmaParser');
 const { detectComponents } = require('../utils/componentDetector');
 const { extractImageNodes, downloadAssets } = require('../utils/assetDownloader');
-const generatePrompt = (mode) => {
+const generatePrompt = (mode, customCSS = '') => {
     const basePrompt = `
     You are an expert Frontend Developer specializing in converting designs into pixel-perfect, responsive HTML and CSS.
     
@@ -39,6 +39,20 @@ const generatePrompt = (mode) => {
     - Start with \`\`\`html\` and end with \`\`\`.
     - The HTML should be a complete file including \`<!DOCTYPE html>\`, \`<html>\`, \`<head>\` (with embedded \`<style>\`), and \`<body>\`.
     - Do not add any conversational text or explanations.
+
+    ${customCSS ? `
+    **USER PROVIDED CUSTOM CSS / UTILITIES:**
+    The user has provided the following CSS/Utility classes. **YOU MUST PRIORITIZE THESE:**
+    \`\`\`css
+    ${customCSS}
+    \`\`\`
+    **INSTRUCTIONS FOR CUSTOM CSS:**
+    1.  **Analyze the provided CSS** above. Look for class names, variables (colors, fonts), and utility patterns.
+    2.  **USE THESE CLASSES:** If the provided CSS contains classes that match the design (e.g., \`.text-primary\`, \`.btn-lg\`, \`.flex-center\`), use them in your HTML *instead* of writing new CSS.
+    3.  **USE VARIABLES:** If the provided CSS defines variables (e.g., \`--primary: #006699\`), use them!
+    4.  **FALLBACK:** If the provided CSS does *not* cover a specific style (e.g., a specific padding or a unique card layout), generate your own CSS for that part as usual.
+    5.  **MERGE:** You can mix provided utility classes with generated custom classes if needed.
+    ` : ''}
     `;
 
     if (mode === 'email') {
@@ -120,7 +134,7 @@ exports.convertImage = async (req, res) => {
             return res.status(400).json({ error: 'No image file provided' });
         }
 
-        const { mode } = req.body; // 'web' or 'email'
+        const { mode, customCSS } = req.body; // 'web' or 'email', plus optional customCSS
 
         console.log(`Processing image upload: ${req.file.originalname}`);
         console.log(`File size: ${(req.file.size / 1024 / 1024).toFixed(2)} MB`);
@@ -129,7 +143,7 @@ exports.convertImage = async (req, res) => {
         const base64Image = req.file.buffer.toString('base64');
         const mediaType = req.file.mimetype;
 
-        const prompt = generatePrompt(mode);
+        const prompt = generatePrompt(mode, customCSS);
 
         // Use OpenAI GPT-4o for vision
         const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -183,20 +197,23 @@ exports.convertImage = async (req, res) => {
 
 exports.convertFigma = async (req, res) => {
     try {
-        const { url, mode } = req.body; // 'web' or 'email'
+        const { url, mode, customCSS } = req.body;
 
         if (!url) {
-            return res.status(400).json({ error: 'No Figma URL provided' });
+            return res.status(400).json({ error: 'Figma URL is required' });
         }
 
-        // Extract File ID and Node ID from URL
-        const fileIdMatch = url.match(/(?:file|design)\/([a-zA-Z0-9]+)/);
+        console.log(`Processing Figma URL: ${url}`);
+        console.log(`Mode: ${mode}`);
+        if (customCSS) console.log('Custom CSS provided (length):', customCSS.length);
+
+        // 1. Parse URL to get file key and node id
+        // Format: https://www.figma.com/file/FILE_KEY/title?node-id=NODE_ID
+        const fileIdMatch = url.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
         const nodeIdMatch = url.match(/node-id=([^&]+)/);
 
-        console.log('Parsing Figma URL:', url);
-
         if (!fileIdMatch) {
-            return res.status(400).json({ error: 'Invalid Figma URL. Could not parse File ID. Ensure URL contains /file/ or /design/.' });
+            return res.status(400).json({ error: 'Invalid Figma URL format.' });
         }
 
         const fileKey = fileIdMatch[1];
@@ -405,7 +422,7 @@ ${JSON.stringify(nodeData, (key, value) => {
         const mediaType = 'image/png';
 
         // 4. Send to OpenAI with Enhanced Context
-        let prompt = generatePrompt(mode);
+        let prompt = generatePrompt(mode, customCSS);
         if (designContext && designContext !== "Node data unavailable.") {
             prompt += `\n\n**DIRECT FIGMA DATA (JSON):**\nUse this JSON data to get EXACT text content, colors, and layout structure. Prioritize this data for accuracy:\n\`\`\`json\n${designContext.substring(0, 15000)}\n\`\`\``;
         }
