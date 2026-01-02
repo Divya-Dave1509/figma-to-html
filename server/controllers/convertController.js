@@ -23,6 +23,14 @@ const generatePrompt = (mode) => {
     2.  **Analyze Colors:** Extract the *exact* hex codes for backgrounds, text, and buttons.
     3.  **Analyze Typography:** Notice font sizes, weights (bold/regular), alignment, and **Line Heights**.
     4.  **Analyze Content:** Read the text in the image and use it verbatim.
+    
+    **CRITICAL: USE EXTRACTED DATA**
+    If **DIRECT FIGMA DATA** is provided at the end of this prompt, you **MUST** use those exact values for:
+    - **Font Families:** Use the specific font family names listed (e.g. 'Inter', 'Roboto').
+    - **Font Sizes/Weights:** Match the exact pixel values from the JSON data.
+    - **Colors:** Use the exact hex codes provided in the JSON data.
+    - **Line Heights:** Use the specific line-heights provided.
+    **Visual estimation is secondary to this direct data.**
 
     **OUTPUT FORMAT:**
     - Return **ONLY** the code.
@@ -280,9 +288,9 @@ exports.convertFigma = async (req, res) => {
 - **COLORS:** ${parsedDesign.colors.join(', ')}
 - **GRADIENTS:** ${parsedDesign.gradients?.length > 0 ? parsedDesign.gradients.join(', ') : 'None'}
 - **TYPOGRAPHY:** 
-  - Headings: ${parsedDesign.typography?.headings?.length || 0} styles
-  - Body: ${parsedDesign.typography?.body?.length || 0} styles
-  - Captions: ${parsedDesign.typography?.captions?.length || 0} styles
+  - Headings: ${parsedDesign.typography?.headings && parsedDesign.typography.headings.length > 0 ? parsedDesign.typography.headings.join(' | ') : 'None'}
+  - Body: ${parsedDesign.typography?.body && parsedDesign.typography.body.length > 0 ? parsedDesign.typography.body.join(' | ') : 'None'}
+  - Captions: ${parsedDesign.typography?.captions && parsedDesign.typography.captions.length > 0 ? parsedDesign.typography.captions.join(' | ') : 'None'}
 - **SPACING SCALE:** ${parsedDesign.spacingScale?.join(', ') || 'Not detected'}
 - **BORDERS:**
   - Radius: ${parsedDesign.borders?.radius?.join(', ') || 'None'}
@@ -348,11 +356,14 @@ ${JSON.stringify(nodeData, (key, value) => {
                 return { buffer: download.data, size: download.data.length };
             } catch (error) {
                 // Handle Rate Limits (429)
+                // Handle Rate Limits (429)
                 if (error.response && error.response.status === 429 && retries > 0) {
-                    console.warn(`Rate limit exceeded (429). Retrying in 5 seconds... (${retries} retries left)`);
-                    await delay(5000); // Wait 5s
+                    const waitTime = (4 - retries) * 10000; // 10s, 20s, 30s
+                    console.warn(`Rate limit exceeded (429). Retrying in ${waitTime / 1000} seconds... (${retries} retries left)`);
+                    await delay(waitTime);
                     return fetchAndCheckImage(scale, retries - 1);
                 }
+                throw error;
                 throw error;
             }
         };

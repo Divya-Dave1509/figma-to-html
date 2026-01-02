@@ -48,15 +48,30 @@ const downloadAssets = async (fileKey, nodes, figmaToken, customFolderName = nul
         console.log(`Fetching download URLs for ${nodes.length} images...`);
 
         // 1. Get Image URLs from Figma
-        const response = await axios.get(`https://api.figma.com/v1/images/${fileKey}`, {
-            headers: { 'X-Figma-Token': figmaToken },
-            params: {
-                ids: ids,
-                format: 'png',
-                scale: 2, // 2x for better quality
-                use_absolute_bounds: true
+        // 1. Get Image URLs from Figma with Retry Logic
+        const fetchImages = async (retries = 3) => {
+            try {
+                return await axios.get(`https://api.figma.com/v1/images/${fileKey}`, {
+                    headers: { 'X-Figma-Token': figmaToken },
+                    params: {
+                        ids: ids,
+                        format: 'png',
+                        scale: 2,
+                        use_absolute_bounds: true
+                    }
+                });
+            } catch (err) {
+                if (err.response && err.response.status === 429 && retries > 0) {
+                    const waitTime = (4 - retries) * 10000; // 10s, 20s, 30s
+                    console.warn(`[AssetDownloader] Rate limit handling: Waiting ${waitTime / 1000}s...`);
+                    await new Promise(r => setTimeout(r, waitTime));
+                    return fetchImages(retries - 1);
+                }
+                throw err;
             }
-        });
+        };
+
+        const response = await fetchImages();
 
         const urls = response.data.images;
         if (!urls) return {};
