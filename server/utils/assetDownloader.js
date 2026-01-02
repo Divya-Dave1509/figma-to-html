@@ -34,10 +34,11 @@ const extractImageNodes = (node, images = []) => {
  * Downloads images from Figma and saves them locally
  * @param {string} fileKey - The Figma file key
  * @param {Array} nodes - Array of image nodes { id, name }
+ * @param {string} customFolderName - Optional custom name for the folder
  * @param {string} figmaToken - Figma access token
  * @returns {Object} - Map of nodeID -> localPath
  */
-const downloadAssets = async (fileKey, nodes, figmaToken) => {
+const downloadAssets = async (fileKey, nodes, figmaToken, customFolderName = null) => {
     if (!nodes || nodes.length === 0) return {};
 
     const imageMap = {};
@@ -61,9 +62,15 @@ const downloadAssets = async (fileKey, nodes, figmaToken) => {
         if (!urls) return {};
 
         // 2. Prepare local directory
-        // We'll save to client/public/assets/images/[fileKey]
+        // We'll save to client/public/assets/images/[customFolderName OR fileKey]
         // This makes them accessible via http://localhost:5173/assets/images/...
-        const assetsDir = path.join(__dirname, '../../client/public/assets/images', fileKey);
+
+        // Sanitize the folder name if provided
+        const safeFolderName = customFolderName
+            ? customFolderName.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+            : fileKey;
+
+        const assetsDir = path.join(__dirname, '../../client/public/assets/images', safeFolderName);
 
         if (!fs.existsSync(assetsDir)) {
             fs.mkdirSync(assetsDir, { recursive: true });
@@ -86,7 +93,7 @@ const downloadAssets = async (fileKey, nodes, figmaToken) => {
                 // Store the public URL path
                 // Note: In Vite, files in public/ are served at root
                 // So public/assets/images/... becomes /assets/images/...
-                imageMap[id] = `/assets/images/${fileKey}/${filename}`;
+                imageMap[id] = `/assets/images/${safeFolderName}/${filename}`;
 
                 console.log(`Downloaded image for node ${id}`);
             } catch (err) {

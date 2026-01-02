@@ -240,7 +240,10 @@ exports.convertFigma = async (req, res) => {
                     let imageMap = {};
                     if (imageNodes.length > 0) {
                         console.log(`Found ${imageNodes.length} image nodes. Downloading...`);
-                        imageMap = await downloadAssets(fileKey, imageNodes, figmaToken);
+
+                        // Use the section/node name for the folder (e.g. "Hero_Section")
+                        const sectionName = nodeData.name;
+                        imageMap = await downloadAssets(fileKey, imageNodes, figmaToken, sectionName);
 
                         // Inject local paths into nodeData for the AI to see directly
                         const injectLocalPaths = (node) => {
